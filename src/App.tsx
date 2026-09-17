@@ -15,14 +15,20 @@ import { executeScraperJob } from './utils/ethicalScraper';
 export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'scrapers' | 'vault' | 'analytics' | 'compliance' | 'threat-intel'>('dashboard');
 
-  // Database Vault & Scraper State
   const [records, setRecords] = useState<RegistryRecord[]>(() => {
+    const liveFlag = localStorage.getItem('marc_live_ops_v1');
+    if (!liveFlag) {
+      localStorage.removeItem('ethical_registry_records');
+      localStorage.setItem('marc_live_ops_v1', '1');
+      return [];
+    }
     const saved = localStorage.getItem('ethical_registry_records');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed : [];
       } catch {
-        return INITIAL_REGISTRY_RECORDS;
+        return [];
       }
     }
     return INITIAL_REGISTRY_RECORDS;
@@ -32,7 +38,12 @@ export default function App() {
     const saved = localStorage.getItem('ethical_scraper_configs');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        const isLegacyMock = Array.isArray(parsed) && parsed.some((s: ScraperConfig) => String(s.id || '').startsWith('SCRAPER-'));
+        if (isLegacyMock || !Array.isArray(parsed) || parsed.length === 0) {
+          return INITIAL_SCRAPER_CONFIGS;
+        }
+        return parsed;
       } catch {
         return INITIAL_SCRAPER_CONFIGS;
       }
@@ -45,25 +56,15 @@ export default function App() {
       id: 'init-log-1',
       timestamp: new Date().toISOString(),
       scraperId: 'SYS',
-      scraperName: 'Security Engine',
+      scraperName: 'Live Ops',
       level: 'INFO',
-      message: 'AES-256-GCM Web Crypto engine initialized. FCRA compliance guardrails loaded.',
+      message: 'Demo records cleared. Vault is empty. Fetch a source or add a record.',
     },
-    {
-      id: 'init-log-2',
-      timestamp: new Date().toISOString(),
-      scraperId: 'SYS',
-      scraperName: 'Security Engine',
-      level: 'SUCCESS',
-      message: 'Database vault locked in read-only masked research mode.',
-    }
   ]);
 
-  // Encryption Lock State
   const [isVaultLocked, setIsVaultLocked] = useState<boolean>(true);
   const [activeCryptoKey, setActiveCryptoKey] = useState<CryptoKey | null>(null);
 
-  // Sync to local storage
   useEffect(() => {
     localStorage.setItem('ethical_registry_records', JSON.stringify(records));
   }, [records]);
@@ -72,7 +73,6 @@ export default function App() {
     localStorage.setItem('ethical_scraper_configs', JSON.stringify(scrapers));
   }, [scrapers]);
 
-  // Master passphrase unlock handler
   const handleUnlockVault = async (passphrase: string): Promise<boolean> => {
     try {
       const derived = await deriveKeyFromPassphrase(passphrase, 'fixed-research-salt-2026');
@@ -86,7 +86,7 @@ export default function App() {
             scraperId: 'SEC',
             scraperName: 'Vault Security',
             level: 'SUCCESS',
-            message: 'Master key successfully derived via PBKDF2. Vault unlocked for full PII inspection.',
+            message: 'Vault unlocked.',
           },
           ...prev,
         ]);
@@ -108,25 +108,17 @@ export default function App() {
         scraperId: 'SEC',
         scraperName: 'Vault Security',
         level: 'INFO',
-        message: 'Master key wiped from active memory. Vault relocked.',
+        message: 'Vault locked.',
       },
       ...prev,
     ]);
   };
 
-  // Quick run scraper from Dashboard
   const handleRunScraperQuick = async (scraperId: string) => {
     const target = scrapers.find((s) => s.id === scraperId);
     if (!target) return;
-
     setActiveTab('scrapers');
-
-    const newLogs: ScraperLogEntry[] = [];
-    const onLog = (l: ScraperLogEntry) => {
-      newLogs.push(l);
-      setLogs((prev) => [l, ...prev]);
-    };
-
+    const onLog = (l: ScraperLogEntry) => setLogs((prev) => [l, ...prev]);
     const res = await executeScraperJob(target, onLog);
     if (res.newRecords.length > 0) {
       setRecords((prev) => [...res.newRecords, ...prev]);
@@ -141,18 +133,6 @@ export default function App() {
       }
       return [updatedConfig, ...prev];
     });
-
-    setLogs((prev) => [
-      {
-        id: `log-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        scraperId: updatedConfig.id,
-        scraperName: updatedConfig.name,
-        level: 'INFO',
-        message: `Scraper configuration '${updatedConfig.name}' updated and saved to system registry.`,
-      },
-      ...prev,
-    ]);
   };
 
   const handleScrapeComplete = (newRecords: RegistryRecord[], newJobLogs: ScraperLogEntry[]) => {
@@ -164,49 +144,11 @@ export default function App() {
 
   const handleAddRecord = (newRecord: RegistryRecord) => {
     setRecords((prev) => [newRecord, ...prev]);
-    setLogs((prev) => [
-      {
-        id: `log-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        scraperId: 'MANUAL',
-        scraperName: 'Manual Verification',
-        level: 'SUCCESS',
-        message: `New verified record ${newRecord.externalId} committed to encrypted vault.`,
-      },
-      ...prev,
-    ]);
   };
 
   const handlePurgeAllRecords = () => {
     setRecords([]);
     localStorage.setItem('ethical_registry_records', JSON.stringify([]));
-    setLogs((prev) => [
-      {
-        id: `log-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        scraperId: 'SYS',
-        scraperName: 'Live Ops Manager',
-        level: 'WARN',
-        message: 'Mock registry records purged. Database vault prepared for live operations.',
-      },
-      ...prev,
-    ]);
-  };
-
-  const handleSeedMockRecords = () => {
-    setRecords(INITIAL_REGISTRY_RECORDS);
-    localStorage.setItem('ethical_registry_records', JSON.stringify(INITIAL_REGISTRY_RECORDS));
-    setLogs((prev) => [
-      {
-        id: `log-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        scraperId: 'SYS',
-        scraperName: 'Live Ops Manager',
-        level: 'INFO',
-        message: 'Demo research mock data re-seeded into database vault.',
-      },
-      ...prev,
-    ]);
   };
 
   return (
@@ -250,7 +192,6 @@ export default function App() {
             onLockVault={handleLockVault}
             onAddRecord={handleAddRecord}
             onPurgeRecords={handlePurgeAllRecords}
-            onSeedMockRecords={handleSeedMockRecords}
           />
         )}
 
@@ -259,30 +200,9 @@ export default function App() {
         {activeTab === 'compliance' && <ComplianceCenter />}
 
         {activeTab === 'threat-intel' && (
-          <ThreatIntelFeed
-            scrapers={scrapers}
-            onSaveScraper={handleSaveScraper}
-          />
+          <ThreatIntelFeed scrapers={scrapers} onSaveScraper={handleSaveScraper} />
         )}
       </main>
-
-      {/* Footer */}
-      <footer className="border-t border-slate-900 bg-slate-950 text-slate-500 text-xs py-6 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>© 2026 Ethical Public Safety Data & Research Portal. All rights reserved.</p>
-          <div className="flex items-center gap-4">
-            <span className="hover:text-slate-400 cursor-pointer" onClick={() => setActiveTab('compliance')}>
-              FCRA Notice
-            </span>
-            <span className="hover:text-slate-400 cursor-pointer" onClick={() => setActiveTab('compliance')}>
-              Privacy Policy
-            </span>
-            <span className="hover:text-slate-400 cursor-pointer" onClick={() => setActiveTab('vault')}>
-              AES-256 Vault
-            </span>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
