@@ -1,6 +1,6 @@
 {
-  "name": "Ethical Registry Scraper & Analytics Vault",
-  "description": "A compliant public registry research tool featuring ethical web scraper configurations, privacy compliance safeguards, AES-256 encrypted database vault, and advanced analytics.",
+  "name": "Marc Live Registry Workspace",
+  "description": "Live registry workspace. Empty vault by default. Fetch public pages or add records by hand. No demo people.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
