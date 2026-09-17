@@ -1,0 +1,47 @@
+name: restore-encrypted-vault
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/components/EncryptedVault.tsx.gz.b64.part0'
+      - 'src/components/EncryptedVault.tsx.gz.b64.part1'
+      - 'src/components/EncryptedVault.tsx.gz.b64.part2'
+      - 'src/components/EncryptedVault.tsx.gz.b64.part3'
+      - '.github/workflows/restore-encrypted-vault.yml'
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble and decode EncryptedVault.tsx
+        run: |
+          python3 <<'PY'
+          import base64, gzip, pathlib
+          parts = []
+          for i in range(4):
+            parts.append(pathlib.Path(f'src/components/EncryptedVault.tsx.gz.b64.part{i}').read_text().strip())
+          raw = gzip.decompress(base64.b64decode(''.join(parts)))
+          out = pathlib.Path('src/components/EncryptedVault.tsx')
+          out.write_bytes(raw)
+          text = raw.decode()
+          assert 'onSeedMockRecords' not in text
+          assert 'Seed Sample Dataset' not in text
+          assert 'research-passphrase-2026' not in text
+          assert 'vault starts empty by design' in text
+          print('restored', len(raw), 'bytes')
+          for i in range(4):
+            fp = pathlib.Path(f'src/components/EncryptedVault.tsx.gz.b64.part{i}')
+            if fp.exists():
+              fp.unlink()
+              print('removed', fp)
+          PY
+      - name: Commit restored file
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git status
+          git commit -m "fix: EncryptedVault empty professional onboarding (no seed/demo passphrase)" || echo "nothing to commit"
+          git push
