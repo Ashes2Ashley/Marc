@@ -1,0 +1,6 @@
+{
+  "name": "Ethical Registry Scraper & Analytics Vault",
+  "description": "A compliant public registry research tool featuring ethical web scraper configurations, privacy compliance safeguards, AES-256 encrypted database vault, and advanced analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
