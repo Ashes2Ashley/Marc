@@ -9,24 +9,20 @@ import { ThreatIntelFeed } from './components/ThreatIntelFeed';
 import { CommandPalette } from './components/CommandPalette';
 import { LiveOpsBar } from './components/LiveOpsBar';
 import { MoreOpsPanel } from './components/MoreOpsPanel';
+import { HardenedBar } from './components/HardenedBar';
 import { RegistryRecord, ScraperConfig, ScraperLogEntry } from './types';
 import { INITIAL_REGISTRY_RECORDS, INITIAL_SCRAPER_CONFIGS } from './data/mockRegistryData';
 import { deriveKeyFromPassphrase } from './utils/crypto';
 import { executeScraperJob, probeWorkerHealth } from './utils/ethicalScraper';
+import { isUnlockLocked, recordUnlockFail, recordUnlockOk, lockRemainingMs, readFails, secureWipe, sealVault, verifyVaultSeal, readAudit } from './utils/hardening';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'scrapers' | 'vault' | 'analytics' | 'compliance' | 'threat-intel'>('dashboard');
   const [records, setRecords] = useState<RegistryRecord[]>(() => {
     const liveFlag = localStorage.getItem('marc_live_ops_v1');
-    if (!liveFlag) {
-      localStorage.removeItem('ethical_registry_records');
-      localStorage.setItem('marc_live_ops_v1', '1');
-      return [];
-    }
+    if (!liveFlag) { localStorage.removeItem('ethical_registry_records'); localStorage.setItem('marc_live_ops_v1', '1'); return []; }
     const saved = localStorage.getItem('ethical_registry_records');
-    if (saved) {
-      try { const parsed = JSON.parse(saved); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
-    }
+    if (saved) { try { const parsed = JSON.parse(saved); return Array.isArray(parsed) ? parsed : []; } catch { return []; } }
     return INITIAL_REGISTRY_RECORDS;
   });
   const [scrapers, setScrapers] = useState<ScraperConfig[]>(() => {
@@ -41,7 +37,7 @@ export default function App() {
     }
     return INITIAL_SCRAPER_CONFIGS;
   });
-  const [logs, setLogs] = useState<ScraperLogEntry[]>([{ id: 'init-log-1', timestamp: new Date().toISOString(), scraperId: 'SYS', scraperName: 'Live Ops', level: 'INFO', message: 'Live workspace ready. Press Ctrl/Cmd+K.' }]);
+  const [logs, setLogs] = useState<ScraperLogEntry[]>([{ id: 'init-log-1', timestamp: new Date().toISOString(), scraperId: 'SYS', scraperName: 'Live Ops', level: 'INFO', message: 'Hardened live workspace.' }]);
   const [isVaultLocked, setIsVaultLocked] = useState(true);
   const [activeCryptoKey, setActiveCryptoKey] = useState<CryptoKey | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -50,6 +46,11 @@ export default function App() {
   const [lastFetchStatus, setLastFetchStatus] = useState('');
   const [retentionDays, setRetentionDays] = useState(0);
   const [runs, setRuns] = useState<{ at: string; label: string; rows: number }[]>([]);
+  const [lockedOut, setLockedOut] = useState(isUnlockLocked());
+  const [lockMs, setLockMs] = useState(lockRemainingMs());
+  const [fails, setFails] = useState(readFails());
+  const [sealOk, setSealOk] = useState<boolean | null>(null);
+  const [auditCount, setAuditCount] = useState(readAudit().length);
   const idleLockMin = 10;
 
   useEffect(() => { localStorage.setItem('ethical_registry_records', JSON.stringify(records)); }, [records]);
@@ -70,29 +71,25 @@ export default function App() {
     };
     ['pointerdown', 'keydown'].forEach((ev) => window.addEventListener(ev, bump));
     bump();
-    return () => {
-      window.clearTimeout(timer);
-      ['pointerdown', 'keydown'].forEach((ev) => window.removeEventListener(ev, bump));
-    };
+    return () => { window.clearTimeout(timer); ['pointerdown', 'keydown'].forEach((ev) => window.removeEventListener(ev, bump)); };
   }, []);
-  useEffect(() => {
-    if (!retentionDays) return;
-    const cutoff = Date.now() - retentionDays * 86400000;
-    setRecords((prev) => prev.filter((r) => new Date(r.scrapedAt).getTime() >= cutoff));
-  }, [retentionDays]);
 
   const handleUnlockVault = async (passphrase: string): Promise<boolean> => {
+    if (isUnlockLocked()) { setLockedOut(true); setLockMs(lockRemainingMs()); return false; }
     try {
       const derived = await deriveKeyFromPassphrase(passphrase, 'fixed-research-salt-2026');
-      if (derived.key) { setActiveCryptoKey(derived.key); setIsVaultLocked(false); return true; }
-      return false;
-    } catch { return false; }
+      if (derived.key) {
+        recordUnlockOk(); setFails(0); setLockedOut(false); setActiveCryptoKey(derived.key); setIsVaultLocked(false); setAuditCount(readAudit().length); return true;
+      }
+      const fail = recordUnlockFail(); setFails(fail.fails); setLockedOut(fail.locked); setLockMs(fail.remainingMs); setAuditCount(readAudit().length); return false;
+    } catch {
+      const fail = recordUnlockFail(); setFails(fail.fails); setLockedOut(fail.locked); setLockMs(fail.remainingMs); setAuditCount(readAudit().length); return false;
+    }
   };
   const handleLockVault = () => { setIsVaultLocked(true); setActiveCryptoKey(null); };
   const stampRun = (label: string, rows: number) => {
     const at = new Date().toISOString();
-    setLastFetchAt(at);
-    setLastFetchStatus(rows ? `${rows} rows` : '0 rows');
+    setLastFetchAt(at); setLastFetchStatus(rows ? `${rows} rows` : '0 rows');
     setRuns((prev) => [{ at, label, rows }, ...prev].slice(0, 20));
   };
   const handleRunScraperQuick = async (scraperId: string) => {
@@ -104,10 +101,7 @@ export default function App() {
     if (res.newRecords.length > 0) setRecords((prev) => [...res.newRecords, ...prev]);
   };
   const handleDedup = () => {
-    setRecords((prev) => {
-      const seen = new Set<string>();
-      return prev.filter((r) => { const key = r.piiHash || r.id; if (seen.has(key)) return false; seen.add(key); return true; });
-    });
+    setRecords((prev) => { const seen = new Set<string>(); return prev.filter((r) => { const key = r.piiHash || r.id; if (seen.has(key)) return false; seen.add(key); return true; }); });
   };
   const handleChecksum = async () => {
     const payload = JSON.stringify(records.map((r) => r.piiHash).sort());
@@ -129,6 +123,10 @@ export default function App() {
       <Header activeTab={activeTab} setActiveTab={setActiveTab} isVaultLocked={isVaultLocked} onToggleVaultLock={() => { if (!isVaultLocked) handleLockVault(); else setActiveTab('vault'); }} recordCount={records.length} />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onGo={setActiveTab} onDedup={handleDedup} onChecksum={handleChecksum} />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <HardenedBar lockedOut={lockedOut} remainingMs={lockMs} fails={fails} sealOk={sealOk} auditCount={auditCount}
+          onWipe={() => { secureWipe(); setRecords([]); setScrapers(INITIAL_SCRAPER_CONFIGS); setAuditCount(readAudit().length); setIsVaultLocked(true); setActiveCryptoKey(null); }}
+          onSeal={async () => { await sealVault(records.map((r) => r.piiHash)); setSealOk(true); setAuditCount(readAudit().length); }}
+          onVerify={async () => { setSealOk(await verifyVaultSeal(records.map((r) => r.piiHash))); setAuditCount(readAudit().length); }} />
         <LiveOpsBar workerOk={workerOk} workerHost={(import.meta as any).env?.VITE_WORKER_URL || '/api'} lastFetchAt={lastFetchAt} lastFetchStatus={lastFetchStatus} recordCount={records.length} uniqueHashes={new Set(records.map((r) => r.piiHash)).size} retentionDays={retentionDays} onRetention={setRetentionDays} onDedup={handleDedup} onChecksum={handleChecksum} idleLockMin={idleLockMin} />
         <MoreOpsPanel records={records} scrapers={scrapers} runs={runs} onPasteRows={(rows) => setRecords((prev) => [...rows, ...prev])} onAddSource={(src) => {
           const cfg: ScraperConfig = {
