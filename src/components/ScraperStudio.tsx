@@ -1,1 +1,1 @@
-FILE:/tmp/STUDIO_FOR_MCP.tsx
+@file:///tmp/STUDIO_FOR_MCP.tsx
