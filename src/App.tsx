@@ -8,6 +8,7 @@ import { ComplianceCenter } from './components/ComplianceCenter';
 import { ThreatIntelFeed } from './components/ThreatIntelFeed';
 import { CommandPalette } from './components/CommandPalette';
 import { LiveOpsBar } from './components/LiveOpsBar';
+import { MoreOpsPanel } from './components/MoreOpsPanel';
 import { RegistryRecord, ScraperConfig, ScraperLogEntry } from './types';
 import { INITIAL_REGISTRY_RECORDS, INITIAL_SCRAPER_CONFIGS } from './data/mockRegistryData';
 import { deriveKeyFromPassphrase } from './utils/crypto';
@@ -24,12 +25,7 @@ export default function App() {
     }
     const saved = localStorage.getItem('ethical_registry_records');
     if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
+      try { const parsed = JSON.parse(saved); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
     }
     return INITIAL_REGISTRY_RECORDS;
   });
@@ -41,16 +37,11 @@ export default function App() {
         const isLegacyMock = Array.isArray(parsed) && parsed.some((s: ScraperConfig) => String(s.id || '').startsWith('SCRAPER-'));
         if (isLegacyMock || !Array.isArray(parsed) || parsed.length === 0) return INITIAL_SCRAPER_CONFIGS;
         return parsed;
-      } catch {
-        return INITIAL_SCRAPER_CONFIGS;
-      }
+      } catch { return INITIAL_SCRAPER_CONFIGS; }
     }
     return INITIAL_SCRAPER_CONFIGS;
   });
-  const [logs, setLogs] = useState<ScraperLogEntry[]>([{
-    id: 'init-log-1', timestamp: new Date().toISOString(), scraperId: 'SYS', scraperName: 'Live Ops', level: 'INFO',
-    message: 'Live workspace ready. Press Ctrl/Cmd+K for commands.',
-  }]);
+  const [logs, setLogs] = useState<ScraperLogEntry[]>([{ id: 'init-log-1', timestamp: new Date().toISOString(), scraperId: 'SYS', scraperName: 'Live Ops', level: 'INFO', message: 'Live workspace ready. Press Ctrl/Cmd+K.' }]);
   const [isVaultLocked, setIsVaultLocked] = useState(true);
   const [activeCryptoKey, setActiveCryptoKey] = useState<CryptoKey | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -58,6 +49,7 @@ export default function App() {
   const [lastFetchAt, setLastFetchAt] = useState<string | null>(null);
   const [lastFetchStatus, setLastFetchStatus] = useState('');
   const [retentionDays, setRetentionDays] = useState(0);
+  const [runs, setRuns] = useState<{ at: string; label: string; rows: number }[]>([]);
   const idleLockMin = 10;
 
   useEffect(() => { localStorage.setItem('ethical_registry_records', JSON.stringify(records)); }, [records]);
@@ -65,10 +57,7 @@ export default function App() {
   useEffect(() => { probeWorkerHealth().then(setWorkerOk); }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setPaletteOpen((v) => !v);
-      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPaletteOpen((v) => !v); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -100,13 +89,18 @@ export default function App() {
     } catch { return false; }
   };
   const handleLockVault = () => { setIsVaultLocked(true); setActiveCryptoKey(null); };
+  const stampRun = (label: string, rows: number) => {
+    const at = new Date().toISOString();
+    setLastFetchAt(at);
+    setLastFetchStatus(rows ? `${rows} rows` : '0 rows');
+    setRuns((prev) => [{ at, label, rows }, ...prev].slice(0, 20));
+  };
   const handleRunScraperQuick = async (scraperId: string) => {
     const target = scrapers.find((s) => s.id === scraperId);
     if (!target) return;
     setActiveTab('scrapers');
     const res = await executeScraperJob(target, (l) => setLogs((prev) => [l, ...prev]));
-    setLastFetchAt(new Date().toISOString());
-    setLastFetchStatus(res.newRecords.length ? `${res.newRecords.length} rows` : '0 rows');
+    stampRun(target.name, res.newRecords.length);
     if (res.newRecords.length > 0) setRecords((prev) => [...res.newRecords, ...prev]);
   };
   const handleDedup = () => {
@@ -120,15 +114,13 @@ export default function App() {
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload));
     const hex = Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
     await navigator.clipboard.writeText(hex);
-    setLogs((prev) => [{ id: `log-${Date.now()}`, timestamp: new Date().toISOString(), scraperId: 'SYS', scraperName: 'Live Ops', level: 'SUCCESS', message: `Vault checksum copied: ${hex.slice(0, 16)}\u2026` }, ...prev]);
   };
   const handleSaveScraper = (updatedConfig: ScraperConfig) => {
     setScrapers((prev) => prev.some((s) => s.id === updatedConfig.id) ? prev.map((s) => (s.id === updatedConfig.id ? updatedConfig : s)) : [updatedConfig, ...prev]);
   };
   const handleScrapeComplete = (newRecords: RegistryRecord[], newJobLogs: ScraperLogEntry[]) => {
     if (newRecords.length > 0) setRecords((prev) => [...newRecords, ...prev]);
-    setLastFetchAt(new Date().toISOString());
-    setLastFetchStatus(newRecords.length ? `${newRecords.length} rows` : '0 rows');
+    stampRun('Source job', newRecords.length);
     setLogs((prev) => [...newJobLogs.reverse(), ...prev]);
   };
 
@@ -138,6 +130,17 @@ export default function App() {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onGo={setActiveTab} onDedup={handleDedup} onChecksum={handleChecksum} />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <LiveOpsBar workerOk={workerOk} workerHost={(import.meta as any).env?.VITE_WORKER_URL || '/api'} lastFetchAt={lastFetchAt} lastFetchStatus={lastFetchStatus} recordCount={records.length} uniqueHashes={new Set(records.map((r) => r.piiHash)).size} retentionDays={retentionDays} onRetention={setRetentionDays} onDedup={handleDedup} onChecksum={handleChecksum} idleLockMin={idleLockMin} />
+        <MoreOpsPanel records={records} scrapers={scrapers} runs={runs} onPasteRows={(rows) => setRecords((prev) => [...rows, ...prev])} onAddSource={(src) => {
+          const cfg: ScraperConfig = {
+            id: `SRC-${src.code}`, name: src.name, stateCode: src.code, targetUrl: src.url, sourceType: 'HTML_TABLE',
+            requestIntervalMs: 4000, respectRobotsTxt: true, userAgent: 'MarcLiveResearch/1.0',
+            selectors: { recordContainer: 'table tr', fullName: 'td', phone: 'td', address: 'td', jurisdiction: 'td', tier: 'td', offense: 'td', convictionYear: 'td' },
+            ethicalGuardrails: { fcraAcknowledged: true, autoRedactPhone: true, autoRedactAddress: true, hashPiiIdentifiers: true, maxDepth: 1 },
+            status: 'Idle',
+          };
+          setScrapers((prev) => (prev.some((s) => s.id === cfg.id) ? prev : [cfg, ...prev]));
+          setActiveTab('scrapers');
+        }} />
         {activeTab === 'dashboard' && <DashboardOverview records={records} scrapers={scrapers} logs={logs} isVaultLocked={isVaultLocked} onNavigate={(tab) => setActiveTab(tab)} onRunScraperQuick={handleRunScraperQuick} />}
         {activeTab === 'scrapers' && <ScraperStudio scrapers={scrapers} onSaveScraper={handleSaveScraper} onScrapeComplete={handleScrapeComplete} />}
         {activeTab === 'vault' && <EncryptedVault records={records} isVaultLocked={isVaultLocked} onUnlockVault={handleUnlockVault} onLockVault={handleLockVault} onAddRecord={(r) => setRecords((prev) => [r, ...prev])} onPurgeRecords={() => setRecords([])} />}
