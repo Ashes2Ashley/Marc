@@ -19,7 +19,6 @@ import {
   Check,
   AlertCircle,
   Trash2,
-  RefreshCw,
   Tag,
   SlidersHorizontal,
   RotateCcw
@@ -108,7 +107,6 @@ interface EncryptedVaultProps {
   onLockVault: () => void;
   onAddRecord: (newRecord: RegistryRecord) => void;
   onPurgeRecords?: () => void;
-  onSeedMockRecords?: () => void;
 }
 
 export const EncryptedVault: React.FC<EncryptedVaultProps> = ({
@@ -118,7 +116,6 @@ export const EncryptedVault: React.FC<EncryptedVaultProps> = ({
   onLockVault,
   onAddRecord,
   onPurgeRecords,
-  onSeedMockRecords,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedState, setSelectedState] = useState('ALL');
@@ -151,7 +148,7 @@ export const EncryptedVault: React.FC<EncryptedVaultProps> = ({
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>('JSON');
   const [includeUnmasked, setIncludeUnmasked] = useState(false);
-  const [exportPassphrase, setExportPassphrase] = useState('research-passphrase-2026');
+  const [exportPassphrase, setExportPassphrase] = useState('');
   const [isExporting, setIsExporting] = useState(false);
 
   // File Import Modal state
@@ -461,18 +458,6 @@ export const EncryptedVault: React.FC<EncryptedVaultProps> = ({
             Export Vault Data
           </button>
 
-          {/* Seed Sample Dataset */}
-          {onSeedMockRecords && (
-            <button
-              onClick={onSeedMockRecords}
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors"
-              title="Restore standard sample dataset"
-            >
-              <RefreshCw className="w-4 h-4 text-cyan-400" />
-              Seed Sample Dataset
-            </button>
-          )}
-
           {/* Purge All Data */}
           {onPurgeRecords && (
             <button
@@ -688,10 +673,10 @@ export const EncryptedVault: React.FC<EncryptedVaultProps> = ({
                   <td colSpan={8} className="px-4 py-12 text-center text-slate-400">
                     <div className="max-w-md mx-auto space-y-2">
                       <p className="text-slate-300 font-medium">
-                        No registry records found matching your active criteria.
+                        No records yet. Import a dataset or add a verified entry — the vault starts empty by design.
                       </p>
                       <p className="text-xs text-slate-500">
-                        Try searching by a different name, record ID (e.g. REG-2026-001 or TX-SOR), or adjusting the offense category filter.
+                        Use Import File or Add Record once unlocked. Official scrapers can also populate this vault.
                       </p>
                       {isFiltered && (
                         <div className="pt-2">
@@ -857,7 +842,7 @@ export const EncryptedVault: React.FC<EncryptedVaultProps> = ({
                   type="password"
                   value={exportPassphrase}
                   onChange={(e) => setExportPassphrase(e.target.value)}
-                  placeholder="Enter custom key or use default research passphrase"
+                  placeholder="Enter export passphrase"
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-indigo-500 text-xs font-mono"
                 />
                 <p className="text-[11px] text-slate-400">
@@ -1089,7 +1074,7 @@ export const EncryptedVault: React.FC<EncryptedVaultProps> = ({
                   required
                 />
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Default research demo passphrase: <code className="text-indigo-400">research-passphrase-2026</code>
+                  Use the passphrase you set locally. Nothing is pre-shared.
                 </p>
               </div>
 
