@@ -10,6 +10,7 @@ import { CommandPalette } from './components/CommandPalette';
 import { LiveOpsBar } from './components/LiveOpsBar';
 import { MoreOpsPanel } from './components/MoreOpsPanel';
 import { HardenedBar } from './components/HardenedBar';
+import { OpsLenses, applyLens, LensId } from './components/OpsLenses';
 import { RegistryRecord, ScraperConfig, ScraperLogEntry } from './types';
 import { INITIAL_REGISTRY_RECORDS, INITIAL_SCRAPER_CONFIGS } from './data/mockRegistryData';
 import { deriveKeyFromPassphrase } from './utils/crypto';
@@ -51,6 +52,8 @@ export default function App() {
   const [fails, setFails] = useState(readFails());
   const [sealOk, setSealOk] = useState<boolean | null>(null);
   const [auditCount, setAuditCount] = useState(readAudit().length);
+  const [lens, setLens] = useState<LensId>('all');
+  const viewed = applyLens(records, lens);
   const idleLockMin = 10;
 
   useEffect(() => { localStorage.setItem('ethical_registry_records', JSON.stringify(records)); }, [records]);
@@ -139,10 +142,11 @@ export default function App() {
           setScrapers((prev) => (prev.some((s) => s.id === cfg.id) ? prev : [cfg, ...prev]));
           setActiveTab('scrapers');
         }} />
-        {activeTab === 'dashboard' && <DashboardOverview records={records} scrapers={scrapers} logs={logs} isVaultLocked={isVaultLocked} onNavigate={(tab) => setActiveTab(tab)} onRunScraperQuick={handleRunScraperQuick} />}
+        <OpsLenses records={records} lens={lens} onLens={setLens} />
+        {activeTab === 'dashboard' && <DashboardOverview records={viewed} scrapers={scrapers} logs={logs} isVaultLocked={isVaultLocked} onNavigate={(tab) => setActiveTab(tab)} onRunScraperQuick={handleRunScraperQuick} />}
         {activeTab === 'scrapers' && <ScraperStudio scrapers={scrapers} onSaveScraper={handleSaveScraper} onScrapeComplete={handleScrapeComplete} />}
-        {activeTab === 'vault' && <EncryptedVault records={records} isVaultLocked={isVaultLocked} onUnlockVault={handleUnlockVault} onLockVault={handleLockVault} onAddRecord={(r) => setRecords((prev) => [r, ...prev])} onPurgeRecords={() => setRecords([])} />}
-        {activeTab === 'analytics' && <AnalyticsHub records={records} />}
+        {activeTab === 'vault' && <EncryptedVault records={viewed} isVaultLocked={isVaultLocked} onUnlockVault={handleUnlockVault} onLockVault={handleLockVault} onAddRecord={(r) => setRecords((prev) => [r, ...prev])} onPurgeRecords={() => setRecords([])} />}
+        {activeTab === 'analytics' && <AnalyticsHub records={viewed} />}
         {activeTab === 'compliance' && <ComplianceCenter />}
         {activeTab === 'threat-intel' && <ThreatIntelFeed scrapers={scrapers} onSaveScraper={handleSaveScraper} />}
       </main>
