@@ -11,6 +11,7 @@ import { LiveOpsBar } from './components/LiveOpsBar';
 import { MoreOpsPanel } from './components/MoreOpsPanel';
 import { HardenedBar } from './components/HardenedBar';
 import { OpsLenses, applyLens, LensId } from './components/OpsLenses';
+import { FileIngest } from './components/FileIngest';
 import { RegistryRecord, ScraperConfig, ScraperLogEntry } from './types';
 import { INITIAL_REGISTRY_RECORDS, INITIAL_SCRAPER_CONFIGS } from './data/mockRegistryData';
 import { deriveKeyFromPassphrase } from './utils/crypto';
@@ -141,6 +142,10 @@ export default function App() {
           };
           setScrapers((prev) => (prev.some((s) => s.id === cfg.id) ? prev : [cfg, ...prev]));
           setActiveTab('scrapers');
+        }} />
+        <FileIngest onIngest={(rows, summary) => {
+          if (rows.length) setRecords((prev) => [...rows, ...prev]);
+          setLogs((prev) => [{ id: `log-${Date.now()}`, timestamp: new Date().toISOString(), scraperId: 'FILE', scraperName: 'Ingest', level: rows.length ? 'SUCCESS' : 'WARN', message: summary, recordsExtracted: rows.length }, ...prev]);
         }} />
         <OpsLenses records={records} lens={lens} onLens={setLens} />
         {activeTab === 'dashboard' && <DashboardOverview records={viewed} scrapers={scrapers} logs={logs} isVaultLocked={isVaultLocked} onNavigate={(tab) => setActiveTab(tab)} onRunScraperQuick={handleRunScraperQuick} />}
