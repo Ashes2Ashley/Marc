@@ -12,8 +12,9 @@ import { MoreOpsPanel } from './components/MoreOpsPanel';
 import { HardenedBar } from './components/HardenedBar';
 import { OpsLenses, applyLens, LensId } from './components/OpsLenses';
 import { FileIngest } from './components/FileIngest';
+import { MobileBottomNav } from './components/MobileBottomNav';
 import { RegistryRecord, ScraperConfig, ScraperLogEntry } from './types';
-import { INITIAL_REGISTRY_RECORDS, INITIAL_SCRAPER_CONFIGS } from './data/mockRegistryData';
+import { INITIAL_REGISTRY_RECORDS, INITIAL_SCRAPER_CONFIGS } from './data/seedSources';
 import { deriveKeyFromPassphrase } from './utils/crypto';
 import { executeScraperJob, probeWorkerHealth } from './utils/ethicalScraper';
 import { isUnlockLocked, recordUnlockFail, recordUnlockOk, lockRemainingMs, readFails, secureWipe, sealVault, verifyVaultSeal, readAudit } from './utils/hardening';
@@ -126,7 +127,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased">
       <Header activeTab={activeTab} setActiveTab={setActiveTab} isVaultLocked={isVaultLocked} onToggleVaultLock={() => { if (!isVaultLocked) handleLockVault(); else setActiveTab('vault'); }} recordCount={records.length} />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onGo={setActiveTab} onDedup={handleDedup} onChecksum={handleChecksum} />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="pb-safe-nav max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <HardenedBar lockedOut={lockedOut} remainingMs={lockMs} fails={fails} sealOk={sealOk} auditCount={auditCount}
           onWipe={() => { secureWipe(); setRecords([]); setScrapers(INITIAL_SCRAPER_CONFIGS); setAuditCount(readAudit().length); setIsVaultLocked(true); setActiveCryptoKey(null); }}
           onSeal={async () => { await sealVault(records.map((r) => r.piiHash)); setSealOk(true); setAuditCount(readAudit().length); }}
@@ -155,6 +156,14 @@ export default function App() {
         {activeTab === 'compliance' && <ComplianceCenter />}
         {activeTab === 'threat-intel' && <ThreatIntelFeed scrapers={scrapers} onSaveScraper={handleSaveScraper} />}
       </main>
+      <MobileBottomNav
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        isVaultLocked={isVaultLocked}
+        onToggleVaultLock={() => { if (!isVaultLocked) handleLockVault(); else setActiveTab('vault'); }}
+        recordCount={records.length}
+        threatCount={0}
+      />
     </div>
   );
 }

@@ -23,7 +23,7 @@ export async function exportRecords(
   records: RegistryRecord[],
   format: ExportFormat,
   unmasked: boolean = false,
-  passphrase: string = 'research-passphrase-2026'
+  passphrase: string = ''
 ): Promise<{ filename: string; mimeType: string; content: string }> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const sanitizedRecords = records.map((r) => ({
@@ -105,63 +105,28 @@ export async function exportRecords(
 
     case 'CSV': {
       const headers = [
-        'ID',
-        'External_ID',
-        'Full_Name',
-        'Phone',
-        'Address',
-        'City',
-        'State',
-        'ZipCode',
-        'Jurisdiction',
-        'Risk_Tier',
-        'Offense_Summary',
-        'Conviction_Year',
-        'Status',
-        'Compliance_Status',
-        'PII_Hash_SHA256',
-        'Source_URL',
+        'ID','External_ID','Full_Name','Phone','Address','City','State','ZipCode',
+        'Jurisdiction','Risk_Tier','Offense_Summary','Conviction_Year','Status',
+        'Compliance_Status','PII_Hash_SHA256','Source_URL',
       ];
-
       const rows = sanitizedRecords.map((r) => [
-        escapeCsvField(r.id),
-        escapeCsvField(r.externalId),
-        escapeCsvField(r.fullName),
-        escapeCsvField(r.phone),
-        escapeCsvField(r.address),
-        escapeCsvField(r.city),
-        escapeCsvField(r.state),
-        escapeCsvField(r.zipCode),
-        escapeCsvField(r.jurisdiction),
-        escapeCsvField(r.tier),
-        escapeCsvField(r.offenseSummary),
-        r.convictionYear,
-        escapeCsvField(r.registrationStatus),
-        escapeCsvField(r.complianceStatus),
-        escapeCsvField(r.piiHash),
-        escapeCsvField(r.sourceUrl),
+        escapeCsvField(r.id), escapeCsvField(r.externalId), escapeCsvField(r.fullName),
+        escapeCsvField(r.phone), escapeCsvField(r.address), escapeCsvField(r.city),
+        escapeCsvField(r.state), escapeCsvField(r.zipCode), escapeCsvField(r.jurisdiction),
+        escapeCsvField(r.tier), escapeCsvField(r.offenseSummary), r.convictionYear,
+        escapeCsvField(r.registrationStatus), escapeCsvField(r.complianceStatus),
+        escapeCsvField(r.piiHash), escapeCsvField(r.sourceUrl),
       ]);
-
       const disclaimer = '# FCRA DISCLAIMER: Official research dataset. Do not use for background checks or housing evaluation.\n';
       const content = disclaimer + [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
-
-      return {
-        filename: `registry_vault_export_${timestamp}.csv`,
-        mimeType: 'text/csv',
-        content,
-      };
+      return { filename: `registry_vault_export_${timestamp}.csv`, mimeType: 'text/csv', content };
     }
 
     case 'XML': {
-      let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
-      xml += '<PublicRegistryVaultExport>\n';
-      xml += '  <Metadata>\n';
+      let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<PublicRegistryVaultExport>\n  <Metadata>\n';
       xml += `    <ExportTimestamp>${new Date().toISOString()}</ExportTimestamp>\n`;
       xml += `    <RecordCount>${records.length}</RecordCount>\n`;
-      xml += `    <UnmaskedPII>${unmasked}</UnmaskedPII>\n`;
-      xml += '  </Metadata>\n';
-      xml += '  <Records>\n';
-
+      xml += `    <UnmaskedPII>${unmasked}</UnmaskedPII>\n  </Metadata>\n  <Records>\n`;
       sanitizedRecords.forEach((r) => {
         xml += '    <Record>\n';
         xml += `      <ID>${escapeXml(r.id)}</ID>\n`;
@@ -177,67 +142,20 @@ export async function exportRecords(
         xml += `      <OffenseSummary>${escapeXml(r.offenseSummary)}</OffenseSummary>\n`;
         xml += `      <ConvictionYear>${r.convictionYear}</ConvictionYear>\n`;
         xml += `      <ComplianceStatus>${escapeXml(r.complianceStatus)}</ComplianceStatus>\n`;
-        xml += `      <PIIHash>${escapeXml(r.piiHash)}</PIIHash>\n`;
-        xml += '    </Record>\n';
+        xml += `      <PIIHash>${escapeXml(r.piiHash)}</PIIHash>\n    </Record>\n`;
       });
-
-      xml += '  </Records>\n';
-      xml += '</PublicRegistryVaultExport>';
-
-      return {
-        filename: `registry_vault_export_${timestamp}.xml`,
-        mimeType: 'application/xml',
-        content: xml,
-      };
+      xml += '  </Records>\n</PublicRegistryVaultExport>';
+      return { filename: `registry_vault_export_${timestamp}.xml`, mimeType: 'application/xml', content: xml };
     }
 
     case 'SQL': {
-      let sql = `-- PUBLIC REGISTRY DATABASE DDL & DATA DUMP\n`;
-      sql += `-- Generated: ${new Date().toISOString()}\n`;
-      sql += `-- Total Records: ${records.length}\n\n`;
-
-      sql += `CREATE TABLE IF NOT EXISTS public_registry_records (\n`;
-      sql += `  id VARCHAR(64) PRIMARY KEY,\n`;
-      sql += `  external_id VARCHAR(64) NOT NULL,\n`;
-      sql += `  full_name VARCHAR(128) NOT NULL,\n`;
-      sql += `  phone VARCHAR(32),\n`;
-      sql += `  address VARCHAR(256),\n`;
-      sql += `  city VARCHAR(64),\n`;
-      sql += `  state VARCHAR(8),\n`;
-      sql += `  zip_code VARCHAR(16),\n`;
-      sql += `  jurisdiction VARCHAR(128),\n`;
-      sql += `  tier VARCHAR(64),\n`;
-      sql += `  offense_summary TEXT,\n`;
-      sql += `  conviction_year INT,\n`;
-      sql += `  compliance_status VARCHAR(32),\n`;
-      sql += `  pii_hash CHAR(64),\n`;
-      sql += `  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n`;
-      sql += `);\n\n`;
-
+      let sql = `-- PUBLIC REGISTRY DATABASE DDL & DATA DUMP\n-- Generated: ${new Date().toISOString()}\n-- Total Records: ${records.length}\n\n`;
+      sql += `CREATE TABLE IF NOT EXISTS public_registry_records (\n  id VARCHAR(64) PRIMARY KEY,\n  external_id VARCHAR(64) NOT NULL,\n  full_name VARCHAR(128) NOT NULL,\n  phone VARCHAR(32),\n  address VARCHAR(256),\n  city VARCHAR(64),\n  state VARCHAR(8),\n  zip_code VARCHAR(16),\n  jurisdiction VARCHAR(128),\n  tier VARCHAR(64),\n  offense_summary TEXT,\n  conviction_year INT,\n  compliance_status VARCHAR(32),\n  pii_hash CHAR(64),\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);\n\n`;
       sanitizedRecords.forEach((r) => {
         sql += `INSERT INTO public_registry_records (id, external_id, full_name, phone, address, city, state, zip_code, jurisdiction, tier, offense_summary, conviction_year, compliance_status, pii_hash) VALUES (\n`;
-        sql += `  ${escapeSqlStr(r.id)},\n`;
-        sql += `  ${escapeSqlStr(r.externalId)},\n`;
-        sql += `  ${escapeSqlStr(r.fullName)},\n`;
-        sql += `  ${escapeSqlStr(r.phone)},\n`;
-        sql += `  ${escapeSqlStr(r.address)},\n`;
-        sql += `  ${escapeSqlStr(r.city)},\n`;
-        sql += `  ${escapeSqlStr(r.state)},\n`;
-        sql += `  ${escapeSqlStr(r.zipCode)},\n`;
-        sql += `  ${escapeSqlStr(r.jurisdiction)},\n`;
-        sql += `  ${escapeSqlStr(r.tier)},\n`;
-        sql += `  ${escapeSqlStr(r.offenseSummary)},\n`;
-        sql += `  ${r.convictionYear},\n`;
-        sql += `  ${escapeSqlStr(r.complianceStatus)},\n`;
-        sql += `  ${escapeSqlStr(r.piiHash)}\n`;
-        sql += `) ON CONFLICT (id) DO NOTHING;\n\n`;
+        sql += `  ${escapeSqlStr(r.id)},\n  ${escapeSqlStr(r.externalId)},\n  ${escapeSqlStr(r.fullName)},\n  ${escapeSqlStr(r.phone)},\n  ${escapeSqlStr(r.address)},\n  ${escapeSqlStr(r.city)},\n  ${escapeSqlStr(r.state)},\n  ${escapeSqlStr(r.zipCode)},\n  ${escapeSqlStr(r.jurisdiction)},\n  ${escapeSqlStr(r.tier)},\n  ${escapeSqlStr(r.offenseSummary)},\n  ${r.convictionYear},\n  ${escapeSqlStr(r.complianceStatus)},\n  ${escapeSqlStr(r.piiHash)}\n) ON CONFLICT (id) DO NOTHING;\n\n`;
       });
-
-      return {
-        filename: `registry_database_dump_${timestamp}.sql`,
-        mimeType: 'text/plain',
-        content: sql,
-      };
+      return { filename: `registry_database_dump_${timestamp}.sql`, mimeType: 'text/plain', content: sql };
     }
 
     case 'MARKDOWN': {
@@ -246,48 +164,22 @@ export async function exportRecords(
       md += `**Total Records Included:** ${records.length}\n`;
       md += `**Unmasked PII Mode:** \`${unmasked ? 'ACTIVE' : 'MASKED'}\` \n\n`;
       md += `> **FCRA Notice:** This document contains research data extracted from state public registries. It is intended strictly for academic, policy, and legal compliance analysis. Do not use for credit or housing evaluation.\n\n`;
-
-      md += `## Records Dataset\n\n`;
-      md += `| ID | Full Name | Location | Tier | Year | Compliance | PII Hash |\n`;
-      md += `|---|---|---|---|---|---|---|\n`;
-
+      md += `## Records Dataset\n\n| ID | Full Name | Location | Tier | Year | Compliance | PII Hash |\n|---|---|---|---|---|---|---|\n`;
       sanitizedRecords.forEach((r) => {
         md += `| \`${r.externalId}\` | **${r.fullName}** | ${r.city}, ${r.state} | ${r.tier} | ${r.convictionYear} | \`${r.complianceStatus}\` | \`${r.piiHash.slice(0, 10)}...\` |\n`;
       });
-
       md += `\n---\n*Generated by Ethical Public Safety Data & Research Vault Engine*`;
-
-      return {
-        filename: `registry_research_report_${timestamp}.md`,
-        mimeType: 'text/markdown',
-        content: md,
-      };
+      return { filename: `registry_research_report_${timestamp}.md`, mimeType: 'text/markdown', content: md };
     }
 
     case 'TSV': {
       const headers = ['ID', 'ExternalID', 'FullName', 'Phone', 'Address', 'City', 'State', 'ZipCode', 'Jurisdiction', 'Tier', 'Offense', 'ConvictionYear', 'PIIHash'];
       const rows = sanitizedRecords.map((r) => [
-        r.id,
-        r.externalId,
-        r.fullName,
-        r.phone,
-        r.address,
-        r.city,
-        r.state,
-        r.zipCode,
-        r.jurisdiction,
-        r.tier,
-        r.offenseSummary.replace(/\t|\n/g, ' '),
-        r.convictionYear,
-        r.piiHash,
+        r.id, r.externalId, r.fullName, r.phone, r.address, r.city, r.state, r.zipCode,
+        r.jurisdiction, r.tier, r.offenseSummary.replace(/\t|\n/g, ' '), r.convictionYear, r.piiHash,
       ]);
-
       const content = [headers.join('\t'), ...rows.map((row) => row.join('\t'))].join('\n');
-      return {
-        filename: `registry_vault_export_${timestamp}.tsv`,
-        mimeType: 'text/tab-separated-values',
-        content,
-      };
+      return { filename: `registry_vault_export_${timestamp}.tsv`, mimeType: 'text/tab-separated-values', content };
     }
 
     default:
@@ -303,12 +195,7 @@ function escapeCsvField(val: string): string {
 
 function escapeXml(str: string): string {
   if (!str) return '';
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+  return str.replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>').replace(/"/g, '"').replace(/'/g, ''');
 }
 
 function escapeSqlStr(str: string): string {

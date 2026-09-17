@@ -50,9 +50,9 @@ export const ScraperStudio: React.FC<ScraperStudioProps> = ({
   const [formConfig, setFormConfig] = useState<ScraperConfig>(
     activeScraper || {
       id: `SCRAPER-${Date.now()}`,
-      name: 'New Custom Public Registry Scraper',
+      name: 'New official source',
       stateCode: 'US',
-      targetUrl: 'https://example-registry.state.gov/public/search',
+      targetUrl: '',
       sourceType: 'HTML_TABLE',
       requestIntervalMs: 2000,
       respectRobotsTxt: true,
@@ -175,9 +175,9 @@ export const ScraperStudio: React.FC<ScraperStudioProps> = ({
             onClick={() => {
               const newScraper: ScraperConfig = {
                 id: `SCRAPER-${Date.now()}`,
-                name: 'New Custom Registry Scraper',
+                name: 'New official source',
                 stateCode: 'US',
-                targetUrl: 'https://state-registry.gov/search',
+                targetUrl: '',
                 sourceType: 'HTML_TABLE',
                 requestIntervalMs: 3000,
                 respectRobotsTxt: true,
@@ -208,7 +208,7 @@ export const ScraperStudio: React.FC<ScraperStudioProps> = ({
             className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
           >
             <Plus className="w-4 h-4 text-indigo-400" />
-            New Scraper
+            New official source
           </button>
 
           <button
@@ -256,7 +256,7 @@ export const ScraperStudio: React.FC<ScraperStudioProps> = ({
                   type="url"
                   value={probeUrl}
                   onChange={(e) => setProbeUrl(e.target.value)}
-                  placeholder="https://api.nsopw.gov/v1/search/public-data"
+                  placeholder="Official public search / registry URL"
                   className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
                 />
                 <button
@@ -453,7 +453,7 @@ export const ScraperStudio: React.FC<ScraperStudioProps> = ({
                   {/* Basic Details */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="sm:col-span-2">
-                      <label className="block text-slate-400 font-medium mb-1">Scraper Name</label>
+                      <label className="block text-slate-400 font-medium mb-1">Source name</label>
                       <input
                         type="text"
                         value={formConfig.name}

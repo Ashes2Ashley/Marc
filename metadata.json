@@ -1,6 +1,6 @@
 {
   "name": "Marc Live Registry Workspace",
-  "description": "Live registry workspace. Empty vault by default. Fetch public pages or add records by hand. No demo people.",
+  "description": "Hardened public-registry research workspace. Empty vault by default. Fetch allowlisted official pages or add records by hand.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": []
 }
