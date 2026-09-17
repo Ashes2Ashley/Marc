@@ -19,7 +19,10 @@ import {
   Check,
   AlertCircle,
   Trash2,
-  RefreshCw
+  RefreshCw,
+  Tag,
+  SlidersHorizontal,
+  RotateCcw
 } from 'lucide-react';
 import { RegistryRecord, ExportFormat } from '../types';
 import {
@@ -30,6 +33,73 @@ import {
   decryptEncryptedCsvEnvelope
 } from '../utils/crypto';
 import { exportRecords, downloadFile } from '../utils/exportUtils';
+
+export const OFFENSE_CATEGORIES = [
+  'ALL',
+  'Sexual Assault & Battery',
+  'Child & Minor Offenses',
+  'Public Indecency & Exposure',
+  'Unlawful Surveillance',
+  'Statutory & Other',
+] as const;
+
+export type OffenseCategory = typeof OFFENSE_CATEGORIES[number];
+
+export function getOffenseCategory(offenseSummary: string): string {
+  if (!offenseSummary) return 'Statutory & Other';
+  const lower = offenseSummary.toLowerCase();
+  if (
+    lower.includes('child') ||
+    lower.includes('minor') ||
+    lower.includes('molest') ||
+    lower.includes('juvenile') ||
+    lower.includes('lascivious')
+  ) {
+    return 'Child & Minor Offenses';
+  }
+  if (
+    lower.includes('battery') ||
+    lower.includes('assault') ||
+    lower.includes('force') ||
+    lower.includes('abuse') ||
+    lower.includes('rape')
+  ) {
+    return 'Sexual Assault & Battery';
+  }
+  if (
+    lower.includes('surveillance') ||
+    lower.includes('voyeur') ||
+    lower.includes('camera') ||
+    lower.includes('peep') ||
+    lower.includes('recording')
+  ) {
+    return 'Unlawful Surveillance';
+  }
+  if (
+    lower.includes('indecen') ||
+    lower.includes('exposure') ||
+    lower.includes('lewd') ||
+    lower.includes('public')
+  ) {
+    return 'Public Indecency & Exposure';
+  }
+  return 'Statutory & Other';
+}
+
+export function getCategoryBadgeClasses(category: string): string {
+  switch (category) {
+    case 'Child & Minor Offenses':
+      return 'bg-rose-500/15 text-rose-300 border border-rose-500/30';
+    case 'Sexual Assault & Battery':
+      return 'bg-orange-500/15 text-orange-300 border border-orange-500/30';
+    case 'Public Indecency & Exposure':
+      return 'bg-amber-500/15 text-amber-300 border border-amber-500/30';
+    case 'Unlawful Surveillance':
+      return 'bg-purple-500/15 text-purple-300 border border-purple-500/30';
+    default:
+      return 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/30';
+  }
+}
 
 interface EncryptedVaultProps {
   records: RegistryRecord[];
@@ -53,6 +123,7 @@ export const EncryptedVault: React.FC<EncryptedVaultProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedState, setSelectedState] = useState('ALL');
   const [selectedTier, setSelectedTier] = useState('ALL');
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [revealPII, setRevealPII] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<RegistryRecord | null>(null);
 
@@ -88,19 +159,44 @@ export const EncryptedVault: React.FC<EncryptedVaultProps> = ({
   const [importStatus, setImportStatus] = useState<string>('');
   const [importError, setImportError] = useState<string>('');
 
-  // Filter logic
+  // Filter logic: locates records by name, ID, or offense category
   const filteredRecords = records.filter((r) => {
+    const term = searchTerm.trim().toLowerCase();
+    const offenseCategory = getOffenseCategory(r.offenseSummary);
+
     const matchesSearch =
-      r.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.jurisdiction.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.externalId.toLowerCase().includes(searchTerm.toLowerCase());
+      !term ||
+      r.fullName.toLowerCase().includes(term) ||
+      r.id.toLowerCase().includes(term) ||
+      r.externalId.toLowerCase().includes(term) ||
+      r.offenseSummary.toLowerCase().includes(term) ||
+      offenseCategory.toLowerCase().includes(term) ||
+      r.jurisdiction.toLowerCase().includes(term) ||
+      r.city.toLowerCase().includes(term) ||
+      r.state.toLowerCase().includes(term) ||
+      r.zipCode.toLowerCase().includes(term);
 
     const matchesState = selectedState === 'ALL' || r.state === selectedState;
     const matchesTier = selectedTier === 'ALL' || r.tier.includes(selectedTier);
+    const matchesCategory =
+      selectedCategory === 'ALL' ||
+      offenseCategory === selectedCategory ||
+      (selectedCategory === 'Sexual Assault & Battery' && (r.offenseSummary.toLowerCase().includes('assault') || r.offenseSummary.toLowerCase().includes('battery'))) ||
+      (selectedCategory === 'Child & Minor Offenses' && (r.offenseSummary.toLowerCase().includes('child') || r.offenseSummary.toLowerCase().includes('minor') || r.offenseSummary.toLowerCase().includes('molest'))) ||
+      (selectedCategory === 'Public Indecency & Exposure' && (r.offenseSummary.toLowerCase().includes('indecen') || r.offenseSummary.toLowerCase().includes('exposure'))) ||
+      (selectedCategory === 'Unlawful Surveillance' && (r.offenseSummary.toLowerCase().includes('surveillance') || r.offenseSummary.toLowerCase().includes('voyeur')));
 
-    return matchesSearch && matchesState && matchesTier;
+    return matchesSearch && matchesState && matchesTier && matchesCategory;
   });
+
+  const isFiltered = searchTerm.trim() !== '' || selectedState !== 'ALL' || selectedTier !== 'ALL' || selectedCategory !== 'ALL';
+
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setSelectedState('ALL');
+    setSelectedTier('ALL');
+    setSelectedCategory('ALL');
+  };
 
   const statesList = Array.from(new Set(records.map((r) => r.state))).sort();
 
@@ -395,49 +491,177 @@ export const EncryptedVault: React.FC<EncryptedVaultProps> = ({
         </div>
       </div>
 
-      {/* Filter and Search Toolbar */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-        <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            placeholder="Search name, jurisdiction, city, or ID..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-slate-200 focus:outline-none focus:border-indigo-500"
-          />
-        </div>
-
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="flex items-center gap-1.5">
-            <Filter className="w-3.5 h-3.5 text-slate-400" />
-            <span className="text-slate-400">State:</span>
-            <select
-              value={selectedState}
-              onChange={(e) => setSelectedState(e.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-indigo-500"
-            >
-              <option value="ALL">All States ({statesList.length})</option>
-              {statesList.map((st) => (
-                <option key={st} value={st}>
-                  {st}
-                </option>
-              ))}
-            </select>
+      {/* Advanced Search and Filter Bar */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg space-y-3.5 text-xs">
+        {/* Primary Controls Row: Search Bar + Select Dropdowns */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          {/* Main Search Input: Name, ID, or Offense Category */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search by name, ID (e.g. REG-001, TX-SOR), or offense category..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-8 py-2 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-200 p-0.5 rounded transition-colors"
+                title="Clear search input"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <span className="text-slate-400">Tier:</span>
-            <select
-              value={selectedTier}
-              onChange={(e) => setSelectedTier(e.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-indigo-500"
+          {/* Filter Selectors: Offense Category, State, Tier */}
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {/* Offense Category Filter */}
+            <div className="flex items-center gap-1.5">
+              <Tag className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="text-slate-400 font-medium">Offense Category:</span>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-indigo-500 font-medium"
+              >
+                <option value="ALL">All Categories</option>
+                <option value="Sexual Assault & Battery">Sexual Assault & Battery</option>
+                <option value="Child & Minor Offenses">Child & Minor Offenses</option>
+                <option value="Public Indecency & Exposure">Public Indecency & Exposure</option>
+                <option value="Unlawful Surveillance">Unlawful Surveillance</option>
+                <option value="Statutory & Other">Statutory & Other</option>
+              </select>
+            </div>
+
+            {/* State Filter */}
+            <div className="flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="text-slate-400 font-medium">State:</span>
+              <select
+                value={selectedState}
+                onChange={(e) => setSelectedState(e.target.value)}
+                className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-indigo-500"
+              >
+                <option value="ALL">All States ({statesList.length})</option>
+                {statesList.map((st) => (
+                  <option key={st} value={st}>
+                    {st}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Risk Tier Filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-400 font-medium">Tier:</span>
+              <select
+                value={selectedTier}
+                onChange={(e) => setSelectedTier(e.target.value)}
+                className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-indigo-500"
+              >
+                <option value="ALL">All Tiers</option>
+                <option value="Tier I">Tier I (Low)</option>
+                <option value="Tier II">Tier II (Moderate)</option>
+                <option value="Tier III">Tier III (High)</option>
+              </select>
+            </div>
+
+            {/* Reset All Filters Button */}
+            {isFiltered && (
+              <button
+                onClick={handleResetFilters}
+                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 rounded-lg flex items-center gap-1 transition-colors"
+                title="Reset all search and filter options"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Filter Chips & Results Counter Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-slate-800/80">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-slate-500 font-mono mr-1 flex items-center gap-1">
+              <SlidersHorizontal className="w-3 h-3 text-slate-400" />
+              Quick Filters:
+            </span>
+            <button
+              onClick={() => { setSelectedCategory('ALL'); setSelectedTier('ALL'); }}
+              className={`px-2.5 py-1 rounded-full text-[11px] transition-colors ${
+                selectedCategory === 'ALL' && selectedTier === 'ALL'
+                  ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                  : 'bg-slate-950 text-slate-400 hover:bg-slate-800 border border-slate-800'
+              }`}
             >
-              <option value="ALL">All Tiers</option>
-              <option value="Tier I">Tier I (Low)</option>
-              <option value="Tier II">Tier II (Moderate)</option>
-              <option value="Tier III">Tier III (High)</option>
-            </select>
+              All Records
+            </button>
+            <button
+              onClick={() => setSelectedCategory(selectedCategory === 'Sexual Assault & Battery' ? 'ALL' : 'Sexual Assault & Battery')}
+              className={`px-2.5 py-1 rounded-full text-[11px] transition-colors ${
+                selectedCategory === 'Sexual Assault & Battery'
+                  ? 'bg-orange-600 text-white font-semibold shadow-sm'
+                  : 'bg-slate-950 text-orange-400/90 hover:bg-orange-950/40 border border-orange-900/40'
+              }`}
+            >
+              Sexual Assault & Battery
+            </button>
+            <button
+              onClick={() => setSelectedCategory(selectedCategory === 'Child & Minor Offenses' ? 'ALL' : 'Child & Minor Offenses')}
+              className={`px-2.5 py-1 rounded-full text-[11px] transition-colors ${
+                selectedCategory === 'Child & Minor Offenses'
+                  ? 'bg-rose-600 text-white font-semibold shadow-sm'
+                  : 'bg-slate-950 text-rose-400/90 hover:bg-rose-950/40 border border-rose-900/40'
+              }`}
+            >
+              Child & Minor Offenses
+            </button>
+            <button
+              onClick={() => setSelectedCategory(selectedCategory === 'Public Indecency & Exposure' ? 'ALL' : 'Public Indecency & Exposure')}
+              className={`px-2.5 py-1 rounded-full text-[11px] transition-colors ${
+                selectedCategory === 'Public Indecency & Exposure'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                  : 'bg-slate-950 text-amber-400/90 hover:bg-amber-950/40 border border-amber-900/40'
+              }`}
+            >
+              Public Indecency
+            </button>
+            <button
+              onClick={() => setSelectedCategory(selectedCategory === 'Unlawful Surveillance' ? 'ALL' : 'Unlawful Surveillance')}
+              className={`px-2.5 py-1 rounded-full text-[11px] transition-colors ${
+                selectedCategory === 'Unlawful Surveillance'
+                  ? 'bg-purple-600 text-white font-semibold shadow-sm'
+                  : 'bg-slate-950 text-purple-400/90 hover:bg-purple-950/40 border border-purple-900/40'
+              }`}
+            >
+              Surveillance
+            </button>
+            <button
+              onClick={() => setSelectedTier(selectedTier === 'Tier III' ? 'ALL' : 'Tier III')}
+              className={`px-2.5 py-1 rounded-full text-[11px] transition-colors ${
+                selectedTier === 'Tier III'
+                  ? 'bg-rose-600 text-white font-semibold shadow-sm'
+                  : 'bg-slate-950 text-slate-400 hover:bg-slate-800 border border-slate-800'
+              }`}
+            >
+              Tier III (High Risk)
+            </button>
+          </div>
+
+          <div className="text-[11px] text-slate-400 font-mono flex items-center gap-2">
+            <span>
+              Showing <strong className="text-white">{filteredRecords.length}</strong> of{' '}
+              <strong className="text-slate-300">{records.length}</strong> records
+            </span>
+            {isFiltered && (
+              <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[10px] border border-indigo-500/30">
+                Filtered
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -448,9 +672,10 @@ export const EncryptedVault: React.FC<EncryptedVaultProps> = ({
           <table className="w-full text-left text-xs text-slate-300">
             <thead className="bg-slate-950 text-slate-400 uppercase font-mono border-b border-slate-800 text-[11px]">
               <tr>
-                <th className="px-4 py-3">Record ID</th>
-                <th className="px-4 py-3">Full Name</th>
-                <th className="px-4 py-3">Phone Number</th>
+                <th className="px-4 py-3">Record / External ID</th>
+                <th className="px-4 py-3">Subject Name</th>
+                <th className="px-4 py-3">Offense Category & Summary</th>
+                <th className="px-4 py-3">Phone</th>
                 <th className="px-4 py-3">Location / Agency</th>
                 <th className="px-4 py-3">Risk Tier</th>
                 <th className="px-4 py-3">Compliance</th>
@@ -460,8 +685,26 @@ export const EncryptedVault: React.FC<EncryptedVaultProps> = ({
             <tbody className="divide-y divide-slate-800/80">
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-slate-500 italic">
-                    No registry records found matching your active search/filter criteria.
+                  <td colSpan={8} className="px-4 py-12 text-center text-slate-400">
+                    <div className="max-w-md mx-auto space-y-2">
+                      <p className="text-slate-300 font-medium">
+                        No registry records found matching your active criteria.
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Try searching by a different name, record ID (e.g. REG-2026-001 or TX-SOR), or adjusting the offense category filter.
+                      </p>
+                      {isFiltered && (
+                        <div className="pt-2">
+                          <button
+                            onClick={handleResetFilters}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium text-xs transition-colors"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            Clear Search & Filters
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -469,10 +712,15 @@ export const EncryptedVault: React.FC<EncryptedVaultProps> = ({
                   const displayFullName = !isVaultLocked && revealPII ? r.fullName : maskName(r.fullName);
                   const displayPhone = !isVaultLocked && revealPII ? r.phone : maskPhone(r.phone);
                   const displayAddress = !isVaultLocked && revealPII ? r.address : maskAddress(r.address);
+                  const category = getOffenseCategory(r.offenseSummary);
+                  const categoryBadgeStyle = getCategoryBadgeClasses(category);
 
                   return (
                     <tr key={r.id} className="hover:bg-slate-800/50 transition-colors">
-                      <td className="px-4 py-3 font-mono text-indigo-300">{r.externalId}</td>
+                      <td className="px-4 py-3 font-mono">
+                        <div className="text-indigo-300 font-semibold">{r.externalId}</div>
+                        <div className="text-[10px] text-slate-500">{r.id}</div>
+                      </td>
 
                       <td className="px-4 py-3 font-medium text-slate-100">
                         <div className="flex items-center gap-1.5">
@@ -481,14 +729,25 @@ export const EncryptedVault: React.FC<EncryptedVaultProps> = ({
                         </div>
                       </td>
 
-                      <td className="px-4 py-3 font-mono text-slate-300">{displayPhone}</td>
+                      <td className="px-4 py-3 max-w-xs">
+                        <div className="space-y-1">
+                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${categoryBadgeStyle}`}>
+                            {category}
+                          </span>
+                          <div className="text-slate-300 text-[11px] line-clamp-2" title={r.offenseSummary}>
+                            {r.offenseSummary}
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3 font-mono text-slate-300 whitespace-nowrap">{displayPhone}</td>
 
                       <td className="px-4 py-3">
                         <div className="text-slate-200">{displayAddress}, {r.city}, {r.state} {r.zipCode}</div>
                         <div className="text-[11px] text-slate-500">{r.jurisdiction}</div>
                       </td>
 
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 whitespace-nowrap">
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                             r.tier.includes('III')
@@ -502,7 +761,7 @@ export const EncryptedVault: React.FC<EncryptedVaultProps> = ({
                         </span>
                       </td>
 
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 whitespace-nowrap">
                         <span
                           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium ${
                             r.complianceStatus === 'FCRA Compliant'
@@ -515,7 +774,7 @@ export const EncryptedVault: React.FC<EncryptedVaultProps> = ({
                         </span>
                       </td>
 
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
                         <button
                           onClick={() => setSelectedRecord(r)}
                           className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded text-xs transition-colors"
@@ -774,7 +1033,12 @@ export const EncryptedVault: React.FC<EncryptedVaultProps> = ({
             </div>
 
             <div>
-              <span className="text-slate-400 font-medium block mb-1">Offense Summary</span>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-slate-400 font-medium">Offense Summary & Classification</span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${getCategoryBadgeClasses(getOffenseCategory(selectedRecord.offenseSummary))}`}>
+                  {getOffenseCategory(selectedRecord.offenseSummary)}
+                </span>
+              </div>
               <p className="p-3 bg-slate-950 rounded-lg text-slate-300 border border-slate-800/80 leading-relaxed">
                 {selectedRecord.offenseSummary}
               </p>
