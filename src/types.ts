@@ -1,5 +1,4 @@
 export type JurisdictionTier = 'Tier I (Low Risk)' | 'Tier II (Moderate Risk)' | 'Tier III (High Risk)' | 'Unclassified';
-
 export type ExportFormat = 'JSON' | 'COMPACT_JSON' | 'CSV' | 'ENCRYPTED_CSV' | 'XML' | 'SQL' | 'MARKDOWN' | 'TSV';
 
 export interface RegistryRecord {
@@ -20,9 +19,11 @@ export interface RegistryRecord {
   scrapedAt: string;
   sourceUrl: string;
   isEncrypted: boolean;
-  encryptedData?: string; // Base64 encoded AES-GCM payload
-  piiHash: string; // SHA-256 hash of PII for deduplication without storing raw text
+  encryptedData?: string;
+  piiHash: string;
   complianceStatus: 'FCRA Compliant' | 'Redacted' | 'Audit Pending' | 'Flagged';
+  notes?: string;
+  parseConfidence?: number;
 }
 
 export interface ScraperConfig {
@@ -31,7 +32,7 @@ export interface ScraperConfig {
   stateCode: string;
   targetUrl: string;
   sourceType: 'HTML_TABLE' | 'JSON_API' | 'XML_FEED' | 'CUSTOM_DOM';
-  requestIntervalMs: number; // Rate limit delay
+  requestIntervalMs: number;
   respectRobotsTxt: boolean;
   userAgent: string;
   useCorsProxy?: boolean;
@@ -87,11 +88,7 @@ export interface EncryptionVaultState {
   algorithm: string;
   totalRecordsCount: number;
   encryptedRecordsCount: number;
-  maskedFieldsActive: {
-    fullName: boolean;
-    phone: boolean;
-    address: boolean;
-  };
+  maskedFieldsActive: { fullName: boolean; phone: boolean; address: boolean };
 }
 
 export interface ComplianceAuditRule {
@@ -113,14 +110,7 @@ export interface AnalyticsSummary {
 }
 
 export type ThreatSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'INFO';
-
-export type ThreatCategory =
-  | 'ANTI_BOT_BYPASS'
-  | 'DOM_SCHEMA_SHIFT'
-  | 'RATE_LIMIT_SPIKE'
-  | 'WAF_CHALLENGE'
-  | 'CORS_POLICY_CHANGE'
-  | 'APT_REGISTRY_TREND';
+export type ThreatCategory = 'ANTI_BOT_BYPASS' | 'DOM_SCHEMA_SHIFT' | 'RATE_LIMIT_SPIKE' | 'WAF_CHALLENGE' | 'CORS_POLICY_CHANGE' | 'APT_REGISTRY_TREND';
 
 export interface ThreatIntelItem {
   id: string;
@@ -144,4 +134,3 @@ export interface ThreatIntelItem {
   };
   isApplied: boolean;
 }
-
